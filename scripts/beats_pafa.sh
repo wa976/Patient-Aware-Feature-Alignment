@@ -1,17 +1,17 @@
-MODEL="ast"
+MODEL="beats"
 SEED="1 2 3 4 5"
 
 for s in $SEED
 do
     for m in $MODEL
     do
-        TAG="seed${s}_best_param"
-        CUDA_VISIBLE_DEVICES=0 python main.py --tag $TAG \
+        TAG="seed${s}_best_50_0.001"
+        CUDA_VISIBLE_DEVICES=0 python ./main.py --tag $TAG \
                                         --dataset icbhi \
                                         --seed $s \
                                         --class_split lungsound \
                                         --n_cls 4 \
-                                        --epochs 50 \
+                                        --epochs 100 \
                                         --batch_size 32 \
                                         --desired_length 5 \
                                         --optimizer adam \
@@ -27,14 +27,15 @@ do
                                         --ma_beta 0.5 \
                                         --from_sl_official \
                                         --audioset_pretrained \
-                                        --method ce \
-                                        --nospec
+                                        --method pafa \
+                                        --w_ce 1.0 \
+                                        --w_pafa 1.0 \
+                                        --lambda_pcsl 50.0\
+                                        --lambda_gpal 0.001 \
+                                        --norm_type ln \
+                                        --output_dim 768 \
+                                        --nospec 
 
-
-                                        # only for evaluation, add the following arguments
-                                        # --eval \
-                                        # --pretrained \
-                                        # --pretrained_ckpt ./save/icbhi_ast_ce_bs8_lr5e-5_ep50_seed1/best.pth
 
     done
 done

@@ -11,10 +11,11 @@ do
                                         --seed $s \
                                         --class_split lungsound \
                                         --n_cls 4 \
-                                        --epochs 50 \
-                                        --batch_size 32 \
+                                        --epochs 300 \
+                                        --batch_size 128 \
+                                        --desired_length 5 \
                                         --optimizer adam \
-                                        --learning_rate 5e-5 \
+                                        --learning_rate 1e-3 \
                                         --weight_decay 1e-6 \
                                         --cosine \
                                         --model $m \
@@ -28,11 +29,6 @@ do
                                         --audioset_pretrained \
                                         --method ce \
 
-
-                                        # only for evaluation, add the following arguments
-                                        # --eval \
-                                        # --pretrained \
-                                        # --pretrained_ckpt ./save/icbhi_ast_ce_bs8_lr5e-5_ep50_seed1/best.pth
 
     done
 done

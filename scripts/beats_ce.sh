@@ -5,7 +5,7 @@ for s in $SEED
 do
     for m in $MODEL
     do
-        TAG="seed${s}_best_param"
+        TAG="seed${s}_best"
         CUDA_VISIBLE_DEVICES=0 python main.py --tag $TAG \
                                         --dataset icbhi \
                                         --seed $s \
@@ -13,10 +13,10 @@ do
                                         --n_cls 4 \
                                         --epochs 100 \
                                         --batch_size 32 \
+                                        --desired_length 5 \
                                         --optimizer adam \
                                         --learning_rate 5e-5 \
                                         --weight_decay 1e-6 \
-                                        --desired_length 5 \
                                         --cosine \
                                         --model $m \
                                         --test_fold official \
@@ -29,11 +29,5 @@ do
                                         --audioset_pretrained \
                                         --method ce \
                                         --nospec
-
-                                        # only for evaluation, add the following arguments
-                                        # --eval \
-                                        # --pretrained \
-                                        # --pretrained_ckpt ./save/icbhi_ast_ce_bs8_lr5e-5_ep50_seed1/best.pth
-
     done
 done

@@ -1,4 +1,4 @@
-MODEL="ast"
+MODEL="cnn6"
 SEED="1 2 3 4 5"
 
 for s in $SEED
@@ -11,11 +11,11 @@ do
                                         --seed $s \
                                         --class_split lungsound \
                                         --n_cls 4 \
-                                        --epochs 50 \
+                                        --epochs 300 \
                                         --batch_size 32 \
                                         --desired_length 5 \
                                         --optimizer adam \
-                                        --learning_rate 5e-5 \
+                                        --learning_rate 1e-3 \
                                         --weight_decay 1e-6 \
                                         --cosine \
                                         --model $m \
@@ -27,14 +27,13 @@ do
                                         --ma_beta 0.5 \
                                         --from_sl_official \
                                         --audioset_pretrained \
-                                        --method ce \
-                                        --nospec
-
-
-                                        # only for evaluation, add the following arguments
-                                        # --eval \
-                                        # --pretrained \
-                                        # --pretrained_ckpt ./save/icbhi_ast_ce_bs8_lr5e-5_ep50_seed1/best.pth
+                                        --method pafa \
+                                        --w_ce 1.0 \
+                                        --w_pafa 0.5 \
+                                        --lambda_pcsl 10.0\
+                                        --lambda_gpal 0.01 \
+                                        --norm_type ln \
+                                        --output_dim 768 \
 
     done
 done

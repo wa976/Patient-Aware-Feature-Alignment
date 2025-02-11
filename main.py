@@ -19,171 +19,7 @@ from util.augmentation import SpecAugment
 from util.misc import adjust_learning_rate, warmup_learning_rate, set_optimizer, update_moving_average
 from util.misc import AverageMeter, accuracy, save_model, update_json
 from models import get_backbone_class
-from method.pvil import ProjectionHead,PatientVarianceInvarianceLoss
-    
-    
-import torch
-import numpy as np
-from sklearn.manifold import TSNE
-import matplotlib.pyplot as plt
-import matplotlib
-matplotlib.use('Agg')  # Add this line before importing pyplot
-import seaborn as sns
-
-def get_fixed_patient_ids(data_loader, n_patients=10):
-    """
-    Get fixed patient IDs for consistent visualization across different runs
-    """
-    all_patient_ids = []
-    for _, labels in data_loader:
-        all_patient_ids.extend(labels[2].numpy())
-    
-    unique_patients = np.unique(all_patient_ids)
-    # Sort to ensure deterministic behavior
-    unique_patients.sort()
-    
-    # Use fixed seed and fixed starting index for reproducibility
-    np.random.seed(42)
-    if len(unique_patients) > n_patients:
-        # Instead of random choice, use fixed indices
-        selected_indices = np.arange(len(unique_patients))
-        np.random.shuffle(selected_indices)
-        # Save these indices to a file if they don't exist
-        indices_file = 'selected_patient_indices.npy'
-        if not os.path.exists(indices_file):
-            np.save(indices_file, selected_indices[:n_patients])
-        else:
-            selected_indices = np.load(indices_file)
-        selected_patients = unique_patients[selected_indices]
-    else:
-        selected_patients = unique_patients
-        
-    return selected_patients
-
-def visualize_features(model, classifier, data_loader, args, projector, mode='train', projection_type=None, n_patients=10, selected_patients=None):
-    """
-    Visualize features using t-SNE for selected patients, with other patients in grey
-    """
-    model.eval()
-    if mode == 'train' and args.method == 'pvil':
-        projector.eval()
-    
-    # If no patients are pre-selected, get the fixed set
-    if selected_patients is None:
-        selected_patients = get_fixed_patient_ids(data_loader, n_patients)
-    
-    # Ensure exactly n_patients are selected
-    selected_patients = selected_patients[:n_patients]
-    
-    # Lists to store all data
-    all_features = []
-    all_patient_labels = []
-    all_class_labels = []
-    
-    with torch.no_grad():
-        for images, labels in data_loader:
-            images = images.cuda()
-            
-            if args.model == 'beats':
-                features = model(images, training=False)
-                if mode == 'train' and args.method == 'pvil':
-                    if projection_type == 'ipc':
-                        features = projector[0](features)
-                    else:  # cpc
-                        features = projector[1](features)
-                else:
-                    features = features.mean(dim=1)
-                
-                all_features.append(features.cpu().numpy())
-                all_patient_labels.extend(labels[2].numpy())
-                all_class_labels.extend(labels[0].numpy())
-    
-    # Concatenate all features
-    all_features = np.concatenate(all_features, axis=0)
-    all_patient_labels = np.array(all_patient_labels)
-    all_class_labels = np.array(all_class_labels)
-    
-    # Apply t-SNE to all data
-    tsne = TSNE(n_components=2, random_state=42)
-    all_features_tsne = tsne.fit_transform(all_features)
-    
-    # Create color palette for selected patients
-    colors = plt.cm.tab10(np.linspace(0, 1, n_patients))
-    patient_colors = {patient: color for patient, color in zip(selected_patients, colors)}
-    
-    # Create markers for classes
-    markers = ['o', 's', '^', 'D']
-    class_markers = {cls: marker for cls, marker in zip(range(args.n_cls), markers)}
-    
-    # Create the plot
-    plt.figure(figsize=(10, 10))
-    
-    # First plot all non-selected patients in grey
-    mask_others = ~np.isin(all_patient_labels, selected_patients)
-    for cls in range(args.n_cls):
-        mask = mask_others & (all_class_labels == cls)
-        if np.any(mask):
-            plt.scatter(all_features_tsne[mask, 0], 
-                      all_features_tsne[mask, 1],
-                      c='lightgray',
-                      marker=class_markers[cls],
-                      s=100,
-                      alpha=0.2)
-    
-    # Then plot selected patients with colors (on top)
-    for patient in selected_patients:
-        for cls in range(args.n_cls):
-            mask = (all_patient_labels == patient) & (all_class_labels == cls)
-            if np.any(mask):
-                plt.scatter(all_features_tsne[mask, 0], 
-                          all_features_tsne[mask, 1],
-                          c=[patient_colors[patient]],
-                          marker=class_markers[cls],
-                          s=100,
-                          alpha=0.8)
-    
-    title = f'T-SNE Visualization ({mode} set)'
-    if projection_type:
-        title += f' - {projection_type.upper()} Projection'
-    plt.title(title)
-    
-    # Add legend for classes only
-    legend_elements = [plt.Line2D([0], [0], marker=marker, color='gray', 
-                                label=f'Class {cls}', linestyle='None', 
-                                markersize=10)
-                      for cls, marker in class_markers.items()]
-    plt.legend(handles=legend_elements, title='Classes')
-    
-    # Save the plot
-    save_name = f'tsne_{mode}'
-    if projection_type:
-        save_name += f'_{projection_type}'
-    save_name += f'_{n_patients}patients'
-    plt.savefig(f'{args.save_folder}/{save_name}.png', dpi=300, bbox_inches='tight')
-    plt.close()
-
-def visualize_train_test(train_loader, test_loader, model, classifier, args, projector, n_patients=10):
-    """
-    Visualize both training and test features for fixed n_patients
-    """
-    # Get fixed patient IDs first
-    selected_patients = get_fixed_patient_ids(train_loader, n_patients)
-    
-    if args.method == 'pvil':
-        print(f"Generating t-SNE visualization for training set (IPC) with fixed {n_patients} patients...")
-        visualize_features(model, classifier, train_loader, args, projector, 
-                         mode='train', projection_type='ipc', n_patients=n_patients,
-                         selected_patients=selected_patients)
-        
-        print(f"Generating t-SNE visualization for training set (CPC) with fixed {n_patients} patients...")
-        visualize_features(model, classifier, train_loader, args, projector, 
-                         mode='train', projection_type='cpc', n_patients=n_patients,
-                         selected_patients=selected_patients)
-    
-    print(f"Generating t-SNE visualization for test set with fixed {n_patients} patients...")
-    visualize_features(model, classifier, test_loader, args, projector, 
-                      mode='test', n_patients=n_patients,
-                      selected_patients=selected_patients)
+from method.pafa import ProjectionHead,PAFALoss
     
     
 
@@ -271,7 +107,7 @@ def parse_args():
     
 
     
-    # PVIL
+    # PAFA
     parser.add_argument('--norm_type', type=str, default='bn',
                         help='normalization type', choices=['bn', 'ln'])
     parser.add_argument('--hidden_dim', type=int, default=None,
@@ -280,13 +116,13 @@ def parse_args():
                         help='projection output dimension')
     parser.add_argument('--proj_type', type=str, default='end2end',
                         help='projection type', choices=['end2end', 'feat_fixed', 'proj_fixed'])
-    parser.add_argument('--lambda_pvr', type=float, default=0.1,
+    parser.add_argument('--lambda_pcsl', type=float, default=0.1,
                         help='lambda for patient variance ratio loss')
-    parser.add_argument('--lambda_pi', type=float, default=0.1,
+    parser.add_argument('--lambda_gpal', type=float, default=0.1,
                         help='lambda for patient invariance loss')
     parser.add_argument('--w_ce', type=float, default=1.0,
                     help='weight for classification loss')
-    parser.add_argument('--w_pvil', type=float, default=0.5,
+    parser.add_argument('--w_pafa', type=float, default=0.5,
                     help='weight for patient loss')
     
     
@@ -409,17 +245,15 @@ def set_model(args):
     
     
 
-    if args.model == 'beats' and args.method == 'pvil':
+    if args.model == 'beats' and args.method == 'pafa':
         classifier = nn.Linear(model.final_feat_dim, args.n_cls).cuda()
-        projector = ProjectionHead(model.final_feat_dim, args.hidden_dim, args.output_dim, model='beats', norm_type=args.norm_type, proj_type=args.proj_type).cuda()
-    elif args.model == 'ast' and args.method == 'pvil':
+        projector = ProjectionHead(model.final_feat_dim, args.hidden_dim, args.output_dim, attention=True, norm_type=args.norm_type, proj_type=args.proj_type).cuda()
+    elif args.model == 'ast' and args.method == 'pafa':
         classifier = nn.Linear(model.final_feat_dim, args.n_cls).cuda()
-        projector_pvrl = ProjectionHead(model.final_feat_dim, args.hidden_dim, args.output_dim, model='ast', norm_type=args.norm_type, proj_type=args.proj_type).cuda()
-        projector_pi= ProjectionHead(model.final_feat_dim, args.hidden_dim, args.output_dim, model='ast', norm_type=args.norm_type, proj_type=args.proj_type).cuda()
-        projector = [projector_pvrl, projector_pi]
-    elif args.model == 'cnn6' and args.method == 'pvil':
+        projector = ProjectionHead(model.final_feat_dim, args.hidden_dim, args.output_dim, attention=False, norm_type=args.norm_type, proj_type=args.proj_type).cuda()
+    elif args.model == 'cnn6' and args.method == 'pafa':
         classifier = nn.Linear(model.final_feat_dim, args.n_cls).cuda()
-        projector = ProjectionHead(model.final_feat_dim, args.hidden_dim, args.output_dim, model='cnn6', norm_type=args.norm_type, proj_type=args.proj_type).cuda()
+        projector = ProjectionHead(model.final_feat_dim, args.hidden_dim, args.output_dim, attention=False, norm_type=args.norm_type, proj_type=args.proj_type).cuda()
     else:
         classifier = nn.Linear(model.final_feat_dim, args.n_cls).cuda() if args.model not in ['ast'] else deepcopy(model.mlp_head).cuda()
         projector = nn.Identity()
@@ -456,21 +290,20 @@ def set_model(args):
         print('pretrained model loaded from: {}'.format(args.pretrained_ckpt))
     
     criterion = nn.CrossEntropyLoss()
-    pvil = PatientVarianceInvarianceLoss()
+    pafa = PAFALoss()
     
     if args.method == 'ce':
         criterion = [criterion.cuda()]
-    elif args.method == 'pvil':
-        criterion = [criterion.cuda(), pvil.cuda()]
+    elif args.method == 'pafa':
+        criterion = [criterion.cuda(), pafa.cuda()]
 
 
     model.cuda()
     
    
    
-    # optim_params = list(model.parameters()) + list(classifier.parameters()) + list(projector.parameters())
+    optim_params = list(model.parameters()) + list(classifier.parameters()) + list(projector.parameters())
     
-    optim_params = list(model.parameters()) + list(classifier.parameters()) + list(projector[0].parameters()) + list(projector[1].parameters())
     optimizer = set_optimizer(args, optim_params)
     
     return model, classifier, projector, criterion, optimizer
@@ -484,10 +317,8 @@ def train(train_loader, model, classifier, projector, criterion, optimizer, epoc
     model.train()
     
     classifier.train()
-    # projector.train()
     
-    projector[0].train()
-    projector[1].train()
+    projector.train()
     
     batch_time = AverageMeter()
     data_time = AverageMeter()
@@ -516,9 +347,7 @@ def train(train_loader, model, classifier, projector, criterion, optimizer, epoc
         if args.ma_update:
             # store the previous iter checkpoint
             with torch.no_grad():
-                ma_ckpt = [deepcopy(model.state_dict()), deepcopy(classifier.state_dict()), deepcopy(projector[0].state_dict()), deepcopy(projector[1].state_dict())]
-
-                # ma_ckpt = [deepcopy(model.state_dict()), deepcopy(classifier.state_dict()), deepcopy(projector.state_dict())]
+                ma_ckpt = [deepcopy(model.state_dict()), deepcopy(classifier.state_dict()), deepcopy(projector.state_dict())]
                 lamb = None
 
         warmup_learning_rate(args, epoch, idx, len(train_loader), optimizer)
@@ -548,22 +377,20 @@ def train(train_loader, model, classifier, projector, criterion, optimizer, epoc
                     
                     loss = criterion[0](output, class_labels)
                     
-            elif args.method == 'pvil':
+            elif args.method == 'pafa':
                 if args.model == 'beats':
                     features= model(images,training=True)
                     
                     
-                    output_class = classifier(features)
+                    output = classifier(features)
                     
-                    output_pvil = projector(features)
-
-                  
+                    output_projector = projector(features)
                         
-                    output = output_class.mean(dim=1)
+                    output = output.mean(dim=1)
                     
-                    cls_loss = criterion[0](output, class_labels)
-                    pvil_loss = criterion[1](output_pvil, patient_labels,class_labels,lambda_pvr=args.lambda_pvr, lambda_pi=args.lambda_pi)
-                    loss = args.w_ce * cls_loss + args.w_pvil * pvil_loss 
+                    loss_class = criterion[0](output, class_labels)
+                    loss_pafa = criterion[1](output_projector, patient_labels,lambda_pcsl=args.lambda_pcsl, lambda_gpal=args.lambda_gpal)
+                    loss = args.w_ce * loss_class + args.w_pafa * loss_pafa 
                 else:
                     if args.nospec:
                         features = model(images, args=args,training=True)
@@ -571,15 +398,14 @@ def train(train_loader, model, classifier, projector, criterion, optimizer, epoc
                         features = model(args.transforms(images), args=args,training=True)
                         
                     
-                    # projector_output = projector(features)
-                    projector_output = projector[0](features)
+                    output_projector = projector(features)
                     
                     output = classifier(features)
                     
                     loss_class = criterion[0](output, class_labels)
-                    loss_pvr = criterion[1](projector_output, patient_labels,lambda_pvr=args.lambda_pvr, lambda_pi=args.lambda_pi)
+                    loss_pafa = criterion[1](output_projector, patient_labels,lambda_pcsl=args.lambda_pcsl, lambda_gpal=args.lambda_gpal)
                     
-                    loss = args.w_ce * loss_class + args.w_pvil * loss_pvr
+                    loss = args.w_ce * loss_class + args.w_pafa * loss_pafa
 
          
             
@@ -603,10 +429,9 @@ def train(train_loader, model, classifier, projector, criterion, optimizer, epoc
                 # exponential moving average update
                 model = update_moving_average(args.ma_beta, model, ma_ckpt[0])
                 classifier = update_moving_average(args.ma_beta, classifier, ma_ckpt[1])
-                # projector = update_moving_average(args.ma_beta, projector, ma_ckpt[2])
+                projector = update_moving_average(args.ma_beta, projector, ma_ckpt[2])
 
-                projector[0] = update_moving_average(args.ma_beta, projector[0], ma_ckpt[2])
-                projector[1] = update_moving_average(args.ma_beta, projector[1], ma_ckpt[3])
+      
         # print info
         if (idx + 1) % args.print_freq == 0:
             print('Train: [{0}][{1}/{2}]\t'
@@ -629,10 +454,7 @@ def validate(val_loader, model, classifier, criterion, args, best_acc, best_mode
     model.eval()
 
     classifier.eval()
-    # projector.eval()
-    
-    projector[0].eval()
-    projector[1].eval() 
+    projector.eval()
     
     batch_time = AverageMeter()
     losses = AverageMeter()
@@ -658,8 +480,6 @@ def validate(val_loader, model, classifier, criterion, args, best_acc, best_mode
                     features = model(images, args=args, training=False)
                     output = classifier(features)
                 loss = criterion[0](output, labels)
-                
-
                 
                 
             losses.update(loss.item(), bsz)
@@ -706,9 +526,7 @@ def validate(val_loader, model, classifier, criterion, args, best_acc, best_mode
     if sc > best_acc[-2] and se > 0.1:
         save_bool = True
         best_acc = [sp, se, sc, f1_normal]
-        best_model = [deepcopy(model.state_dict()), deepcopy(classifier.state_dict()), deepcopy(projector[0].state_dict()), deepcopy(projector[1].state_dict())]
-
-        # best_model = [deepcopy(model.state_dict()), deepcopy(classifier.state_dict()), deepcopy(projector.state_dict())]
+        best_model = [deepcopy(model.state_dict()), deepcopy(classifier.state_dict()), deepcopy(projector.state_dict())]
 
     print(' * S_p: {:.2f}, S_e: {:.2f}, Score: {:.2f} (Best S_p: {:.2f}, S_e: {:.2f}, Score: {:.2f})'.format(sp, se, sc, best_acc[0], best_acc[1], best_acc[2]))
     print(' * F1 Score: {:.2f} (F1 Score: {:.2f})'.format(f1_normal, best_acc[3]))
@@ -716,7 +534,67 @@ def validate(val_loader, model, classifier, criterion, args, best_acc, best_mode
 
     return best_acc, best_model, save_bool
 
-
+def evaluate_patient_level(val_loader, model, classifier, projector, args):
+    patient_results = {}
+    model.eval()
+    classifier.eval()
+    projector.eval()
+    with torch.no_grad():
+        for idx, (images, labels) in enumerate(val_loader):
+            images = images.cuda(non_blocking=True)
+            # class label과 patient id를 모두 사용
+            class_labels = labels[0].cuda(non_blocking=True)
+            patient_ids = labels[2]  # patient id (tensor 또는 리스트)
+            with torch.cuda.amp.autocast():
+                if args.model == 'beats':
+                    features = model(images, training=False)
+                    output = classifier(features)
+                    output = output.mean(dim=1)
+                else:
+                    features = model(images, args=args, training=False)
+                    output = classifier(features)
+                _, preds = torch.max(output, 1)
+            for i in range(len(patient_ids)):
+                # patient id가 tensor인 경우 item()으로 추출
+                pid = patient_ids[i]
+                if isinstance(pid, torch.Tensor):
+                    pid = pid.item()
+                if pid not in patient_results:
+                    patient_results[pid] = {'true': [], 'pred': []}
+                patient_results[pid]['true'].append(class_labels[i].item())
+                patient_results[pid]['pred'].append(preds[i].item())
+    
+  
+    patient_metrics = {}
+    for pid, data in patient_results.items():
+        true_list = data['true']
+        pred_list = data['pred']
+        counts = [0.0] * args.n_cls
+        hits = [0.0] * args.n_cls
+        for t, p in zip(true_list, pred_list):
+            counts[t] += 1.0
+            if not args.two_cls_eval:
+                if p == t:
+                    hits[t] += 1.0
+            else:
+                if t == 0 and p == 0:
+                    hits[t] += 1.0
+                elif t != 0 and p > 0:
+                    hits[t] += 1.0
+        total_samples = sum(counts)
+        total_hits = sum(hits)
+        acc_patient = total_hits / total_samples if total_samples > 0 else 0
+        sp, se, sc, _ = get_score(hits, counts)
+        patient_metrics[pid] = (total_samples, acc_patient, sp, se, sc)
+    
+    import csv
+    csv_path = os.path.join(args.save_folder, 'patient_evaluation.csv')
+    with open(csv_path, 'w', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow(['patient id', 'number of samples', 'accuracy', 'spesific', 'sensitive', 'score'])
+        for pid, metrics in patient_metrics.items():
+            writer.writerow([pid] + list(metrics))
+    print("Patient-level evaluation metrics saved to", csv_path)
 
 
 def main():
@@ -804,19 +682,15 @@ def main():
         save_file = os.path.join(args.save_folder, 'best.pth')
         model.load_state_dict(best_model[0])
         classifier.load_state_dict(best_model[1])
-        # projector.load_state_dict(best_model[2])
-        projector[0].load_state_dict(best_model[2])
-        projector[1].load_state_dict(best_model[3])
+        projector.load_state_dict(best_model[2])
         save_model(model, optimizer, args, epoch, save_file, classifier, projector)
         
     else:
-        visualize_train_test(train_loader, val_loader, model, classifier, args, projector)
-
         print("correct")
         print('Testing the pretrained checkpoint on {} dataset'.format(args.dataset))
         best_acc, _, _  = validate(val_loader, model, classifier, criterion, args, best_acc, best_model, projector)
         model.eval()  # Set the model to evaluation mode
-        
+        evaluate_patient_level(val_loader, model, classifier, projector, args)
 
     update_json('%s' % args.model_name, best_acc, path=os.path.join(args.save_dir, 'results.json'))
     print('Checkpoint {} finished'.format(args.model_name))
