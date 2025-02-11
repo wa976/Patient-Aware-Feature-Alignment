@@ -29,10 +29,12 @@ pip install -r requirements.txt
 
 ## ICBHI Data
 We use the ICBHI 2017 Challenge Respiratory Sound Database in our experiments.
-Download and unzip the dataset using the following commands:
+
+Download the dataset using the following commands:
 ```bash
+wget https://bhichallenge.med.auth.gr/sites/default/files/ICBHI_final_database/ICBHI_final_database.zip
+or 
 wget --no-check-certificate https://bhichallenge.med.auth.gr/sites/default/files/ICBHI_final_database/ICBHI_final_database.zip
-unzip ICBHI_final_database.zip
 ```
 
 ## Pretrained weight
