@@ -4,9 +4,9 @@ __pycache__/
 *$py.class
 *.pyc
 *.pth
+*.pt
 *.wav
 *.npy
 *.txt
 save/
-data/
-pretrained_models/
+figures/
