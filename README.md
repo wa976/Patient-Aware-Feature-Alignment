@@ -4,8 +4,6 @@
 
 > **Official Code** of:  **“Patient-Aware Feature Alignment for Robust Lung Sound Classification.”**
 
-> **Seung Gyu Jeong<sup>1</sup>, Seung Eun Kim<sup>1</sup>**  
-> <sup>1</sup>Seoul National University of Science and Technology
 
 
 This repository provides the **Patient-Aware Feature Alignment (PAFA)** framework to tackle lung sound classification under challenging conditions where data are highly imbalanced and patient variability is substantial. Our approach uses two key objectives:
