@@ -49,20 +49,21 @@ We use 'BEATs_iter3+ (AS2M)' model weight for our experiment.
 Below is an example command to train the model. Adjust the parameters (batch size, learning rate, etc.) as needed.
 ```bash
 # Beats + CE
+bash scripts/beats_ce.sh
+
+# Beats + PAFA 
+bash scripts/beats_pafa.sh
+```
+
+### 2) Evaluation
+```bash
+# Beats + CE
 bash scripts/beats_ce_eval.sh
 
 # Beats + PAFA 
 bash scripts/beats_pafa_eval.sh
 ```
 
-### 2) Evaluation
-```bash
-# Beats + CE
-bash scripts/beats_ce.sh
-
-# Beats + PAFA 
-bash scripts/beats_pafa.sh
-```
 Note that change --pretrained_ckpt with your directory.
 
 ## Result
