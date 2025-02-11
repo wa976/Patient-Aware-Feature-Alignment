@@ -1,0 +1,6 @@
+timm
+torch
+torchaudio
+torchvision
+tqdm
+transformers
