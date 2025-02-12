@@ -65,7 +65,7 @@ bash scripts/beats_pafa_eval.sh
 Note that change --pretrained_ckpt with your directory.
 
 ## Result
-<p align="center"> <img src="./images/result_performance.png" width="800"> </p>
+<p align="center"> <img src="./images/result_performance.PNG" width="800"> </p>
 <p align="center"> <img src="./images/boxplot2.png" width="800"> </p>
 
 
