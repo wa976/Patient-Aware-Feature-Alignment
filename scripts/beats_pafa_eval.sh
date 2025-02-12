@@ -29,15 +29,15 @@ do
                                         --audioset_pretrained \
                                         --method pafa \
                                         --w_ce 1.0 \
-                                        --w_pafa 0.5 \
-                                        --lambda_pcsl 10.0\
-                                        --lambda_gpal 0.01 \
+                                        --w_pafa 1.0 \
+                                        --lambda_pcsl 50.0\
+                                        --lambda_gpal 0.0005 \
                                         --norm_type ln \
                                         --output_dim 768 \
                                         --nospec \
                                         --eval \
                                         --pretrained \
-                                        --pretrained_ckpt ./save/icbhi_beats_pafa_seed${s}_best/best.pth
+                                        --pretrained_ckpt ./save/icbhi_beats_pafa_seed${s}_best_50_0.0005/best.pth
 
     done
 done

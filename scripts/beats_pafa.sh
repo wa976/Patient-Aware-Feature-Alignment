@@ -5,7 +5,7 @@ for s in $SEED
 do
     for m in $MODEL
     do
-        TAG="seed${s}_best_50_0.001"
+        TAG="seed${s}_best"
         CUDA_VISIBLE_DEVICES=0 python ./main.py --tag $TAG \
                                         --dataset icbhi \
                                         --seed $s \
@@ -31,7 +31,7 @@ do
                                         --w_ce 1.0 \
                                         --w_pafa 1.0 \
                                         --lambda_pcsl 50.0\
-                                        --lambda_gpal 0.001 \
+                                        --lambda_gpal 0.0005 \
                                         --norm_type ln \
                                         --output_dim 768 \
                                         --nospec 

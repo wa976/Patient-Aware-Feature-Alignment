@@ -23,6 +23,7 @@ from method.pafa import ProjectionHead,PAFALoss
     
     
 
+    
             
 def parse_args():
     parser = argparse.ArgumentParser('argument for supervised training')
@@ -686,7 +687,8 @@ def main():
         save_model(model, optimizer, args, epoch, save_file, classifier, projector)
         
     else:
-        print("correct")
+        visualize_train_test(train_loader, val_loader, model, classifier, args, projector)
+        
         print('Testing the pretrained checkpoint on {} dataset'.format(args.dataset))
         best_acc, _, _  = validate(val_loader, model, classifier, criterion, args, best_acc, best_model, projector)
         model.eval()  # Set the model to evaluation mode

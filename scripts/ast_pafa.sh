@@ -29,9 +29,9 @@ do
                                         --audioset_pretrained \
                                         --method pafa \
                                         --w_ce 1.0 \
-                                        --w_pafa 0.5 \
-                                        --lambda_pcsl 10.0\
-                                        --lambda_gpal 0.01 \
+                                        --w_pafa 1.0 \
+                                        --lambda_pcsl 5.0\
+                                        --lambda_gpal 0.005 \
                                         --norm_type ln \
                                         --output_dim 768 \
                                         --nospec
