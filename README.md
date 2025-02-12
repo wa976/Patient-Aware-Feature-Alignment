@@ -65,8 +65,8 @@ bash scripts/beats_pafa_eval.sh
 Note that change --pretrained_ckpt with your directory.
 
 ## Result
-<p align="center"> <img src="./images/model.png" width="800"> </p>
-<p align="center"> <img src="./images/model.png" width="800"> </p>
+<p align="center"> <img src="./images/result_performance.png" width="800"> </p>
+<p align="center"> <img src="./images/boxplot2.png" width="800"> </p>
 
 
 PAFA (CE + PCSL + GPAL) consistently improves sensitivity and overall ICBHI Score compared to standard cross-entropy training. Notably, variance in patient-level accuracy is reduced, indicating more uniform performance across different patients.
