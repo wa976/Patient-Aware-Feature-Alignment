@@ -20,8 +20,8 @@ from util.misc import adjust_learning_rate, warmup_learning_rate, set_optimizer,
 from util.misc import AverageMeter, accuracy, save_model, update_json
 from models import get_backbone_class
 from method.pafa import ProjectionHead,PAFALoss
-    
-    
+from method.visualization import visualize_train_test
+from method.analysis import get_patient_centroids, sort_patients_by_count, find_closest_pairs
 
     
             
@@ -359,13 +359,9 @@ def train(train_loader, model, classifier, projector, criterion, optimizer, epoc
                 if args.model == 'beats':
                     features  = model(images,training=True)
                 
-                
                     output = classifier(features)
-        
-        
                     output = output.mean(dim=1)
-          
-                    
+                          
                     loss = criterion[0](output, class_labels)
 
                 else:
@@ -381,7 +377,6 @@ def train(train_loader, model, classifier, projector, criterion, optimizer, epoc
             elif args.method == 'pafa':
                 if args.model == 'beats':
                     features= model(images,training=True)
-                    
                     
                     output = classifier(features)
                     
@@ -543,9 +538,8 @@ def evaluate_patient_level(val_loader, model, classifier, projector, args):
     with torch.no_grad():
         for idx, (images, labels) in enumerate(val_loader):
             images = images.cuda(non_blocking=True)
-            # class label과 patient id를 모두 사용
             class_labels = labels[0].cuda(non_blocking=True)
-            patient_ids = labels[2]  # patient id (tensor 또는 리스트)
+            patient_ids = labels[2]  
             with torch.cuda.amp.autocast():
                 if args.model == 'beats':
                     features = model(images, training=False)
@@ -556,7 +550,6 @@ def evaluate_patient_level(val_loader, model, classifier, projector, args):
                     output = classifier(features)
                 _, preds = torch.max(output, 1)
             for i in range(len(patient_ids)):
-                # patient id가 tensor인 경우 item()으로 추출
                 pid = patient_ids[i]
                 if isinstance(pid, torch.Tensor):
                     pid = pid.item()
@@ -686,11 +679,30 @@ def main():
         projector.load_state_dict(best_model[2])
         save_model(model, optimizer, args, epoch, save_file, classifier, projector)
         
-    else:        
+   
+    else:
         print('Testing the pretrained checkpoint on {} dataset'.format(args.dataset))
         best_acc, _, _  = validate(val_loader, model, classifier, criterion, args, best_acc, best_model, projector)
         model.eval()  # Set the model to evaluation mode
-        evaluate_patient_level(val_loader, model, classifier, projector, args)
+        
+        ################################################################################
+        ##### For Patient-level evaluation, visualize the patient-level evaluation results
+        ################################################################################    
+        # train_centroids = get_patient_centroids(train_loader, model, projector,save = True)
+        # test_centroids = get_patient_centroids(val_loader, model, projector,save = False)
+
+        # target_train_pids = np.array([107,130,154,158,172,203])
+        # print("target_train_pids", target_train_pids)
+        # train_centroids_for_dist = train_centroids
+        # test_centroids_for_dist  = test_centroids
+        # closest_patient_ids = find_closest_pairs(train_centroids_for_dist, 
+        #                               test_centroids_for_dist, 
+        #                               target_train_pids, 
+        #                               top_k=10)
+        # print("closest_patient_ids", closest_patient_ids)
+
+        # evaluate_patient_level(val_loader, model, classifier, projector, args)
+        # visualize_train_test(train_loader, val_loader, model, classifier, args, projector)
 
     update_json('%s' % args.model_name, best_acc, path=os.path.join(args.save_dir, 'results.json'))
     print('Checkpoint {} finished'.format(args.model_name))

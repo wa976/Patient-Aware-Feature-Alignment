@@ -5,7 +5,7 @@ for s in $SEED
 do
     for m in $MODEL
     do
-        TAG="seed${s}_best_param"
+        TAG="seed${s}_best"
         CUDA_VISIBLE_DEVICES=0 python main.py --tag $TAG \
                                         --dataset icbhi \
                                         --seed $s \

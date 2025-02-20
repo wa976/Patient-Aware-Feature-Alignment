@@ -84,7 +84,8 @@ class PAFALoss(nn.Module):
         
         loss = self.compute_loss(features, patient_ids, lambda_pcsl, lambda_gpal)
         return loss
-    
+
+
     def compute_loss(self, features, patient_ids, lambda_pcsl=0.1, lambda_gpal=0.1):
 
         device = features.device
@@ -92,85 +93,33 @@ class PAFALoss(nn.Module):
         if unique_ids.numel() <= 1:
             return torch.tensor(0.0, device=device, requires_grad=True)
 
-        N, D = features.shape  # N=batch_size, D=embedding_dim
         within_variance = 0.0
         centroids = []
-
-        # Calculate patient centroids and within-patient variance
+        
+        # For each patient, calculate the centroid and within-patient variance
         for pid in unique_ids:
             mask = (patient_ids == pid)
             features_pid = features[mask]
             centroid = features_pid.mean(dim=0)
             centroids.append(centroid)
-            # sum of squared distances
-            within_variance += (features_pid - centroid).pow(2).sum()
-
-        centroids = torch.stack(centroids, dim=0)  # [num_patients, feature_dim]
-        num_patients = centroids.size(0)
-
-        # Average within_variance by total samples
-        within_variance_avg = within_variance / N
+            within_variance += torch.sum((features_pid - centroid) ** 2)
         
-        # Between-patient distance (sum of pairwise centroid distances)
+        centroids = torch.stack(centroids, dim=0)  # [num_patients, feature_dim]
+
+        # Calculate the total squared distance between centroids of different patients (between_distance)
         between_distance = 0.0
-        num_pairs = num_patients * (num_patients - 1) / 2.0
+        num_patients = centroids.shape[0]
         for i in range(num_patients):
             for j in range(i + 1, num_patients):
-                between_distance += (centroids[i] - centroids[j]).pow(2).sum()
-                
-        # Average between_distance by num_pairs
-        between_distance_avg = between_distance / (num_pairs + self.eps)
+                between_distance += torch.norm(centroids[i] - centroids[j]) ** 2
 
-        # PCSL Loss: ratio of averaged within to averaged between
-        loss_pcsl = within_variance_avg / (between_distance_avg + self.eps)
+        # PCSL Loss: within_variance / (between_distance + eps)
+        loss_pcsl = within_variance / (between_distance + self.eps)
 
-        # GPAL: align each centroid to global centroid
+        # GPAL Loss: Encourage each patient's centroid to be close to the global centroid
         global_centroid = centroids.mean(dim=0)
-        # sum of squared distances from global centroid
-        dist2global = (centroids - global_centroid).pow(2).sum(dim=1)  # shape: [num_patients]
-        # mean over patients
-        loss_gpal = dist2global.mean()
+        loss_gpal = torch.mean(torch.norm(centroids - global_centroid, dim=1) ** 2)
         
-        # print(f"within_variance_avg: {within_variance_avg}, between_distance_avg: {between_distance_avg}")
-        # print(f"loss_pcsl: {loss_pcsl}, loss_gpal: {loss_gpal}")
+        # print(f"within_variance: {within_variance}, between_distance: {between_distance}, loss_pcsl: {loss_pcsl}, loss_gpal: {loss_gpal}")
 
-        total_loss = lambda_pcsl * loss_pcsl + lambda_gpal * loss_gpal
-        return total_loss
-        
-    
-
-    # def compute_loss(self, features, patient_ids, lambda_pcsl=0.1, lambda_gpal=0.1):
-
-    #     device = features.device
-    #     unique_ids = torch.unique(patient_ids)
-    #     if unique_ids.numel() <= 1:
-    #         return torch.tensor(0.0, device=device, requires_grad=True)
-
-    #     within_variance = 0.0
-    #     centroids = []
-        
-    #     # For each patient, calculate the centroid and within-patient variance
-    #     for pid in unique_ids:
-    #         mask = (patient_ids == pid)
-    #         features_pid = features[mask]
-    #         centroid = features_pid.mean(dim=0)
-    #         centroids.append(centroid)
-    #         within_variance += torch.sum((features_pid - centroid) ** 2)
-        
-    #     centroids = torch.stack(centroids, dim=0)  # [num_patients, feature_dim]
-
-    #     # Calculate the total squared distance between centroids of different patients (between_distance)
-    #     between_distance = 0.0
-    #     num_patients = centroids.shape[0]
-    #     for i in range(num_patients):
-    #         for j in range(i + 1, num_patients):
-    #             between_distance += torch.norm(centroids[i] - centroids[j]) ** 2
-
-    #     # PCSL Loss: within_variance / (between_distance + eps)
-    #     loss_pcsl = within_variance / (between_distance + self.eps)
-
-    #     # GPAL Loss: Encourage each patient's centroid to be close to the global centroid
-    #     global_centroid = centroids.mean(dim=0)
-    #     loss_gpal = torch.mean(torch.norm(centroids - global_centroid, dim=1) ** 2)
-
-    #     return lambda_pcsl * loss_pcsl + lambda_gpal * loss_gpal
+        return lambda_pcsl * loss_pcsl + lambda_gpal * loss_gpal

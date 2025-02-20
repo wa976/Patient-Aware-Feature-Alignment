@@ -216,7 +216,9 @@ class ICBHIDataset(Dataset):
                         else:
                             audio_data.append(torch.tensor(audio))
                     
-                    self.audio_images.append((audio_data, label, device_label, int(mapped_patient_id)))
+                    # self.audio_images.append((audio_data, label, device_label, int(mapped_patient_id)))
+                    self.audio_images.append((audio_data, label, device_label, int(patient_id)))
+
                 
                 
                 

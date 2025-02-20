@@ -37,7 +37,7 @@ do
                                         --nospec \
                                         --eval \
                                         --pretrained \
-                                        --pretrained_ckpt ./save/icbhi_beats_pafa_seed${s}_best_50_0.0005/best.pth
+                                        --pretrained_ckpt ./save/icbhi_beats_pafa_seed${s}_best/best.pth
 
     done
 done
